@@ -3226,7 +3226,7 @@ function parseDockerComposeFile(Service|Application $resource, bool $isNew = fal
                     }
                 }
                 if ($resource->server->isLogDrainEnabled() && $savedService->isLogDrainEnabled()) {
-                    data_set($service, 'logging', generate_fluentd_configuration());
+                    data_set($service, 'logging', generate_log_drain_configuration($resource->server));
                 }
                 if ($serviceLabels->count() > 0) {
                     if ($resource->is_container_label_escape_enabled) {
@@ -4051,7 +4051,7 @@ function parseDockerComposeFile(Service|Application $resource, bool $isNew = fal
 
             if ($server->isLogDrainEnabled()) {
                 if ($resource instanceof Application && $resource->isLogDrainEnabled()) {
-                    data_set($service, 'logging', generate_fluentd_configuration());
+                    data_set($service, 'logging', generate_log_drain_configuration($server));
                 }
             }
             if ($serviceLabels->count() > 0) {
@@ -4109,6 +4109,37 @@ function generate_fluentd_configuration(): array
             // env vars are used in the LogDrain configurations
             'env' => 'COOLIFY_APP_NAME,COOLIFY_PROJECT_NAME,COOLIFY_SERVER_IP,COOLIFY_ENVIRONMENT_NAME',
         ],
+    ];
+}
+
+function generate_log_drain_configuration(Server $server): array
+{
+    if (! $server->settings->is_logdrain_awslogs_enabled) {
+        return generate_fluentd_configuration();
+    }
+
+    $rawOptions = trim((string) $server->settings->logdrain_awslogs_options);
+    $decodedOptions = json_decode($rawOptions, true);
+    if (! is_array($decodedOptions)) {
+        return generate_fluentd_configuration();
+    }
+
+    $options = collect($decodedOptions)
+        ->mapWithKeys(function ($value, $key) {
+            return [(string) $key => is_bool($value) ? ($value ? 'true' : 'false') : (string) $value];
+        })
+        ->all();
+
+    if (
+        blank(data_get($options, 'awslogs-group')) ||
+        blank(data_get($options, 'awslogs-region'))
+    ) {
+        return generate_fluentd_configuration();
+    }
+
+    return [
+        'driver' => 'awslogs',
+        'options' => $options,
     ];
 }
 

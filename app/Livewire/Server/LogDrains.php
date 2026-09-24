@@ -24,6 +24,9 @@ class LogDrains extends Component
     #[Validate(['boolean'])]
     public bool $isLogDrainAxiomEnabled = false;
 
+    #[Validate(['boolean'])]
+    public bool $isLogDrainAwslogsEnabled = false;
+
     #[Validate(['string', 'nullable', 'regex:/^[a-zA-Z0-9_\-\.]+$/'])]
     public ?string $logDrainNewRelicLicenseKey = null;
 
@@ -41,6 +44,9 @@ class LogDrains extends Component
 
     #[Validate(['string', 'nullable'])]
     public ?string $logDrainCustomConfigParser = null;
+
+    #[Validate(['string', 'nullable'])]
+    public ?string $logDrainAwslogsOptions = null;
 
     public function mount(string $server_uuid)
     {
@@ -99,6 +105,19 @@ class LogDrains extends Component
         }
     }
 
+    private function syncDataAwslogs(bool $toModel = false): void
+    {
+        if ($toModel) {
+            $this->server->settings->is_logdrain_awslogs_enabled = $this->isLogDrainAwslogsEnabled;
+            $this->server->settings->logdrain_awslogs_options = $this->logDrainAwslogsOptions;
+        } else {
+            $this->isLogDrainAwslogsEnabled = $this->server->settings->is_logdrain_awslogs_enabled;
+            $this->logDrainAwslogsOptions = auth()->user()->can('update', $this->server)
+                ? $this->server->settings->logdrain_awslogs_options
+                : null;
+        }
+    }
+
     private function syncData(bool $toModel = false, ?string $type = null): void
     {
         if ($toModel) {
@@ -109,10 +128,13 @@ class LogDrains extends Component
                 $this->syncDataAxiom($toModel);
             } elseif ($type === 'custom') {
                 $this->syncDataCustom($toModel);
+            } elseif ($type === 'awslogs') {
+                $this->syncDataAwslogs($toModel);
             } else {
                 $this->syncDataNewRelic($toModel);
                 $this->syncDataAxiom($toModel);
                 $this->syncDataCustom($toModel);
+                $this->syncDataAwslogs($toModel);
             }
             $this->auditLogDrain('updated');
             $this->server->settings->save();
@@ -123,12 +145,14 @@ class LogDrains extends Component
                 $this->syncDataAxiom($toModel);
             } elseif ($type === 'custom') {
                 $this->syncDataCustom($toModel);
+            } elseif ($type === 'awslogs') {
+                $this->syncDataAwslogs($toModel);
             } else {
                 $this->syncDataNewRelic($toModel);
                 $this->syncDataAxiom($toModel);
                 $this->syncDataCustom($toModel);
+                $this->syncDataAwslogs($toModel);
             }
-            $this->auditLogDrain($this->{$enabledProperty} ? 'enabled' : 'disabled', $type);
         }
     }
 
@@ -167,6 +191,17 @@ class LogDrains extends Component
 
                 throw $e;
             }
+        } elseif ($this->isLogDrainAwslogsEnabled) {
+            try {
+                $this->validate([
+                    'logDrainAwslogsOptions' => ['required', 'string'],
+                ]);
+                $this->validateAwslogsOptions();
+            } catch (\Throwable $e) {
+                $this->isLogDrainAwslogsEnabled = false;
+
+                throw $e;
+            }
         }
     }
 
@@ -193,6 +228,7 @@ class LogDrains extends Component
         $previousNewRelicEnabled = $this->server->settings->is_logdrain_newrelic_enabled;
         $previousAxiomEnabled = $this->server->settings->is_logdrain_axiom_enabled;
         $previousCustomEnabled = $this->server->settings->is_logdrain_custom_enabled;
+        $previousAwslogsEnabled = $this->server->settings->is_logdrain_awslogs_enabled;
 
         try {
             $this->authorize('update', $this->server);
@@ -207,6 +243,7 @@ class LogDrains extends Component
                 $this->isLogDrainNewRelicEnabled = $type === 'newrelic';
                 $this->isLogDrainAxiomEnabled = $type === 'axiom';
                 $this->isLogDrainCustomEnabled = $type === 'custom';
+                $this->isLogDrainAwslogsEnabled = $type === 'awslogs';
             }
 
             $this->syncData(true);
@@ -224,6 +261,7 @@ class LogDrains extends Component
             $this->server->settings->is_logdrain_newrelic_enabled = $previousNewRelicEnabled;
             $this->server->settings->is_logdrain_axiom_enabled = $previousAxiomEnabled;
             $this->server->settings->is_logdrain_custom_enabled = $previousCustomEnabled;
+            $this->server->settings->is_logdrain_awslogs_enabled = $previousAwslogsEnabled;
             $this->server->settings->save();
             $this->syncData();
 
@@ -253,6 +291,7 @@ class LogDrains extends Component
             'newrelic' => 'isLogDrainNewRelicEnabled',
             'axiom' => 'isLogDrainAxiomEnabled',
             'custom' => 'isLogDrainCustomEnabled',
+            'awslogs' => 'isLogDrainAwslogsEnabled',
             default => throw new \InvalidArgumentException('Unknown log drain type.'),
         };
     }
@@ -282,7 +321,37 @@ class LogDrains extends Component
                 'logDrainCustomConfig' => ['required'],
                 'logDrainCustomConfigParser' => ['string', 'nullable'],
             ]),
+            'awslogs' => $this->validate([
+                'logDrainAwslogsOptions' => ['required', 'string'],
+            ]),
             default => throw new \InvalidArgumentException('Unknown log drain type.'),
         };
+
+        if ($type === 'awslogs') {
+            $this->validateAwslogsOptions();
+        }
+    }
+
+    private function validateAwslogsOptions(): void
+    {
+        $options = json_decode((string) $this->logDrainAwslogsOptions, true);
+        if (! is_array($options)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'logDrainAwslogsOptions' => 'AWS logs options must be valid JSON.',
+            ]);
+        }
+
+        $this->validate([
+            'logDrainAwslogsOptions' => [
+                function (string $attribute, mixed $value, \Closure $fail) use ($options): void {
+                    if (! array_key_exists('awslogs-group', $options) || blank((string) $options['awslogs-group'])) {
+                        $fail('The awslogs-group option is required.');
+                    }
+                    if (! array_key_exists('awslogs-region', $options) || blank((string) $options['awslogs-region'])) {
+                        $fail('The awslogs-region option is required.');
+                    }
+                },
+            ],
+        ]);
     }
 }

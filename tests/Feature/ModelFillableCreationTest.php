@@ -342,6 +342,8 @@ it('creates ServerSetting with all fillable attributes', function () {
         'is_logdrain_custom_enabled' => false,
         'logdrain_custom_config' => '{"endpoint":"https://logs.example.com"}',
         'logdrain_custom_config_parser' => 'json',
+        'is_logdrain_awslogs_enabled' => false,
+        'logdrain_awslogs_options' => '{"awslogs-group":"coolify","awslogs-region":"us-east-1"}',
         'concurrent_builds' => 4,
         'dynamic_timeout' => 600,
         'force_disabled' => false,

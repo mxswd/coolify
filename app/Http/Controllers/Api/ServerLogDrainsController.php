@@ -22,6 +22,8 @@ class ServerLogDrainsController extends Controller
         'is_logdrain_custom_enabled',
         'logdrain_custom_config',
         'logdrain_custom_config_parser',
+        'is_logdrain_awslogs_enabled',
+        'logdrain_awslogs_options',
     ];
 
     private function findServerForTeam(int $teamId, string $uuid): ?Server
@@ -43,6 +45,7 @@ class ServerLogDrainsController extends Controller
             'is_logdrain_axiom_enabled' => (bool) $settings->is_logdrain_axiom_enabled,
             'logdrain_axiom_dataset_name' => $settings->logdrain_axiom_dataset_name,
             'is_logdrain_custom_enabled' => (bool) $settings->is_logdrain_custom_enabled,
+            'is_logdrain_awslogs_enabled' => (bool) $settings->is_logdrain_awslogs_enabled,
         ];
 
         if ($this->canReadSensitive()) {
@@ -51,6 +54,7 @@ class ServerLogDrainsController extends Controller
             $payload['logdrain_custom_config'] = $settings->logdrain_custom_config;
             $payload['logdrain_custom_config_parser'] = $settings->logdrain_custom_config_parser;
         }
+        $payload['logdrain_awslogs_options'] = $settings->logdrain_awslogs_options;
 
         return $payload;
     }
@@ -80,6 +84,8 @@ class ServerLogDrainsController extends Controller
                         new OA\Property(property: 'is_logdrain_custom_enabled', type: 'boolean'),
                         new OA\Property(property: 'logdrain_custom_config', type: 'string', description: 'Only present with read:sensitive.'),
                         new OA\Property(property: 'logdrain_custom_config_parser', type: 'string', description: 'Only present with read:sensitive.'),
+                        new OA\Property(property: 'is_logdrain_awslogs_enabled', type: 'boolean'),
+                        new OA\Property(property: 'logdrain_awslogs_options', type: 'string', nullable: true),
                     ],
                     type: 'object',
                 ),
@@ -129,6 +135,8 @@ class ServerLogDrainsController extends Controller
                     new OA\Property(property: 'is_logdrain_custom_enabled', type: 'boolean'),
                     new OA\Property(property: 'logdrain_custom_config', type: 'string'),
                     new OA\Property(property: 'logdrain_custom_config_parser', type: 'string'),
+                    new OA\Property(property: 'is_logdrain_awslogs_enabled', type: 'boolean'),
+                    new OA\Property(property: 'logdrain_awslogs_options', type: 'string'),
                 ],
                 type: 'object',
             ),
@@ -170,6 +178,8 @@ class ServerLogDrainsController extends Controller
             'is_logdrain_custom_enabled' => 'boolean',
             'logdrain_custom_config' => 'nullable|string',
             'logdrain_custom_config_parser' => 'nullable|string',
+            'is_logdrain_awslogs_enabled' => 'boolean',
+            'logdrain_awslogs_options' => 'nullable|string',
         ]);
 
         $extraFields = array_diff(array_keys($request->all()), self::ALLOWED_FIELDS);
@@ -224,6 +234,23 @@ class ServerLogDrainsController extends Controller
                     'logdrain_custom_config' => ['The custom log drain config is required when custom log drain is enabled.'],
                 ],
             ], 422);
+        }
+        if ($settings->is_logdrain_awslogs_enabled) {
+            $options = json_decode((string) $settings->logdrain_awslogs_options, true);
+            $errors = [];
+            if (! is_array($options)) {
+                $errors['logdrain_awslogs_options'] = ['AWS logs options must be valid JSON.'];
+            } else {
+                if (blank(data_get($options, 'awslogs-group'))) {
+                    $errors['logdrain_awslogs_options'] = ['The awslogs-group option is required when AWS logs log drain is enabled.'];
+                }
+                if (blank(data_get($options, 'awslogs-region'))) {
+                    $errors['logdrain_awslogs_options'][] = 'The awslogs-region option is required when AWS logs log drain is enabled.';
+                }
+            }
+            if ($errors !== []) {
+                return response()->json(['message' => 'Validation failed.', 'errors' => $errors], 422);
+            }
         }
 
         $settings->save();

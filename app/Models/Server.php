@@ -1424,7 +1424,7 @@ $siteAddress {
 
     public function isLogDrainEnabled()
     {
-        return $this->settings->is_logdrain_newrelic_enabled || $this->settings->is_logdrain_highlight_enabled || $this->settings->is_logdrain_axiom_enabled || $this->settings->is_logdrain_custom_enabled;
+        return $this->settings->is_logdrain_newrelic_enabled || $this->settings->is_logdrain_highlight_enabled || $this->settings->is_logdrain_axiom_enabled || $this->settings->is_logdrain_custom_enabled || $this->settings->is_logdrain_awslogs_enabled;
     }
 
     public function validateOS(): bool|Stringable

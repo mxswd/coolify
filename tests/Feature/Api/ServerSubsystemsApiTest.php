@@ -186,6 +186,41 @@ describe('Log drains API', function () {
             ->and($settings->logdrain_axiom_api_key)->toBe('axiom-key-123');
     });
 
+    test('PATCH updates awslogs log drain settings for own team server', function () {
+        Queue::fake();
+
+        $options = json_encode([
+            'awslogs-group' => 'coolify',
+            'awslogs-region' => 'us-east-1',
+            'awslogs-create-group' => true,
+        ], JSON_THROW_ON_ERROR);
+
+        $this->withHeaders(serverSubsystemsHeaders())
+            ->patchJson("/api/v1/servers/{$this->server->uuid}/log-drains", [
+                'is_logdrain_awslogs_enabled' => true,
+                'logdrain_awslogs_options' => $options,
+            ])
+            ->assertOk()
+            ->assertJsonPath('is_logdrain_awslogs_enabled', true)
+            ->assertJsonPath('logdrain_awslogs_options', $options);
+
+        $settings = $this->server->settings->fresh();
+        expect((bool) $settings->is_logdrain_awslogs_enabled)->toBeTrue()
+            ->and($settings->logdrain_awslogs_options)->toBe($options);
+    });
+
+    test('PATCH rejects awslogs log drain when required options are missing', function () {
+        Queue::fake();
+
+        $this->withHeaders(serverSubsystemsHeaders())
+            ->patchJson("/api/v1/servers/{$this->server->uuid}/log-drains", [
+                'is_logdrain_awslogs_enabled' => true,
+                'logdrain_awslogs_options' => json_encode(['awslogs-group' => 'coolify'], JSON_THROW_ON_ERROR),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('logdrain_awslogs_options');
+    });
+
     test('other-team log drains endpoints return 404', function () {
         $this->withHeaders(serverSubsystemsHeaders())
             ->getJson("/api/v1/servers/{$this->otherServer->uuid}/log-drains")

@@ -34,7 +34,7 @@
                                     ['value' => false, 'label' => 'Disabled'],
                                     ['value' => true, 'label' => 'Enabled'],
                                 ]"
-                                :disabled="$isLogDrainAxiomEnabled || $isLogDrainCustomEnabled || !auth()->user()->can('update', $server)" />
+                                :disabled="$isLogDrainAxiomEnabled || $isLogDrainCustomEnabled || $isLogDrainAwslogsEnabled || !auth()->user()->can('update', $server)" />
                             <x-forms.input canGate="update" :canResource="$server" type="password" required
                                 id="logDrainNewRelicLicenseKey" label="License key"
                                 :disabled="$server->isLogDrainEnabled()" />
@@ -53,7 +53,7 @@
                                     ['value' => false, 'label' => 'Disabled'],
                                     ['value' => true, 'label' => 'Enabled'],
                                 ]"
-                                :disabled="$isLogDrainNewRelicEnabled || $isLogDrainCustomEnabled || !auth()->user()->can('update', $server)" />
+                                :disabled="$isLogDrainNewRelicEnabled || $isLogDrainCustomEnabled || $isLogDrainAwslogsEnabled || !auth()->user()->can('update', $server)" />
                             <x-forms.input canGate="update" :canResource="$server" type="password" required
                                 id="logDrainAxiomApiKey" label="API key"
                                 :disabled="$server->isLogDrainEnabled()" />
@@ -70,7 +70,7 @@
                                     ['value' => false, 'label' => 'Disabled'],
                                     ['value' => true, 'label' => 'Enabled'],
                                 ]"
-                                :disabled="$isLogDrainNewRelicEnabled || $isLogDrainAxiomEnabled || !auth()->user()->can('update', $server)" />
+                                :disabled="$isLogDrainNewRelicEnabled || $isLogDrainAxiomEnabled || $isLogDrainAwslogsEnabled || !auth()->user()->can('update', $server)" />
                         </div>
                         <div class="grid gap-4 lg:grid-cols-2">
                             <x-forms.textarea canGate="update" :canResource="$server" rows="8" required
@@ -80,6 +80,21 @@
                                 id="logDrainCustomConfigParser" label="Parser configuration"
                                 :disabled="$server->isLogDrainEnabled()" />
                         </div>
+                    </x-application.settings-section>
+                    <x-application.settings-section id="server-awslogs-drain-section" title="AWS Logs Driver"
+                        helper="Use Docker's awslogs logging driver with custom options in JSON format.">
+                        <div class="mb-4 max-w-sm">
+                            <x-forms.listbox canGate="update" :canResource="$server" id="isLogDrainAwslogsEnabled" label="Status"
+                                onChange="instantSave" :options="[
+                                    ['value' => false, 'label' => 'Disabled'],
+                                    ['value' => true, 'label' => 'Enabled'],
+                                ]"
+                                :disabled="$isLogDrainNewRelicEnabled || $isLogDrainAxiomEnabled || $isLogDrainCustomEnabled || !auth()->user()->can('update', $server)" />
+                        </div>
+                        <x-forms.textarea canGate="update" :canResource="$server" rows="8" required
+                            id="logDrainAwslogsOptions" label="Driver options (JSON)"
+                            helper='Include at least awslogs-group and awslogs-region. Example: {"awslogs-group":"my-group","awslogs-region":"us-east-1"}'
+                            :disabled="$server->isLogDrainEnabled()" />
                     </x-application.settings-section>
                 </form>
             @else

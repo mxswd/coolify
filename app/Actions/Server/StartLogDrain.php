@@ -22,6 +22,8 @@ class StartLogDrain
             $type = 'axiom';
         } elseif ($server->settings->is_logdrain_custom_enabled) {
             $type = 'custom';
+        } elseif ($server->settings->is_logdrain_awslogs_enabled) {
+            $type = 'awslogs';
         } else {
             $type = 'none';
         }
@@ -31,6 +33,8 @@ class StartLogDrain
         try {
             if ($type === 'none') {
                 return 'No log drain is enabled.';
+            } elseif ($type === 'awslogs') {
+                return 'AWS CloudWatch log driver is enabled.';
             } elseif ($type === 'newrelic') {
                 if (! $server->settings->is_logdrain_newrelic_enabled) {
                     throw new \Exception('New Relic log drain is not enabled.');
